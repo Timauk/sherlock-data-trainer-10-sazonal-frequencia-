@@ -5,6 +5,7 @@ import GameBoard from '@/components/GameBoard';
 import EnhancedLogDisplay from '@/components/EnhancedLogDisplay';
 import NeuralNetworkVisualization from '@/components/NeuralNetworkVisualization';
 import ModelMetrics from '@/components/ModelMetrics';
+import AdvancedMetricsChart from '@/components/AdvancedMetricsChart';
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { useGameLogic } from '@/hooks/useGameLogic';
@@ -76,9 +77,15 @@ export const PlayPageContent: React.FC<PlayPageContentProps> = ({
 
       <div className="flex-1">
         <NeuralNetworkVisualization 
-          layers={[15, 64, 32, 15]} 
+          layers={[37, 64, 32, 15]} 
           inputData={gameLogic.neuralNetworkVisualization?.input}
           outputData={gameLogic.neuralNetworkVisualization?.output}
+        />
+
+        <AdvancedMetricsChart
+          frequencyAnalysis={gameLogic.frequencyAnalysis}
+          seasonalTrends={gameLogic.seasonalTrends}
+          dayOfWeekTrends={gameLogic.dayOfWeekTrends}
         />
       </div>
     </div>

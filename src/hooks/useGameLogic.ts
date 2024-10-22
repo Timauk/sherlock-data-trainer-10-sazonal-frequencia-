@@ -15,6 +15,11 @@ interface ModelMetrics {
   totalPredictions: number;
 }
 
+interface FrequencyAnalysis {
+  range: number;
+  frequencies: { [key: number]: number };
+}
+
 export const useGameLogic = (csvData: number[][], trainedModel: tf.LayersModel | null) => {
   const [players, setPlayers] = useState<Player[]>([]);
   const [generation, setGeneration] = useState(1);
@@ -33,6 +38,10 @@ export const useGameLogic = (csvData: number[][], trainedModel: tf.LayersModel |
   const [trainingData, setTrainingData] = useState<number[][]>([]);
   const [updateInterval, setUpdateInterval] = useState(10);
   const [maxConcurso, setMaxConcurso] = useState(0);
+
+  const [frequencyAnalysis, setFrequencyAnalysis] = useState<FrequencyAnalysis[]>([]);
+  const [seasonalTrends, setSeasonalTrends] = useState<number[]>([]);
+  const [dayOfWeekTrends, setDayOfWeekTrends] = useState<number[]>([]);
 
   const addLog = useCallback((message: string, matches?: number) => {
     setLogs(prevLogs => [...prevLogs, { message, matches }]);
@@ -143,8 +152,6 @@ export const useGameLogic = (csvData: number[][], trainedModel: tf.LayersModel |
 
     try {
       const updatedModel = await updateModel(trainedModel, trainingData);
-      // We can't directly set the trainedModel state here as it's passed as a prop
-      // Instead, we'll need to handle this update in the parent component
       addLog(`Modelo atualizado com ${trainingData.length} novos registros.`);
       setTrainingData([]); // Clear training data after update
     } catch (error) {
@@ -157,9 +164,47 @@ export const useGameLogic = (csvData: number[][], trainedModel: tf.LayersModel |
     setUpdateInterval(Math.max(10, Math.floor(csvData.length / 10)));
   }, [csvData]);
 
+  const analyzeData = useCallback(() => {
+    if (csvData.length === 0) return;
+
+    const ranges = [3, 5, 7, 10, 15, 20, 50, 100];
+    const newFrequencyAnalysis: FrequencyAnalysis[] = ranges.map(range => ({
+      range,
+      frequencies: {}
+    }));
+
+    const newSeasonalTrends: number[] = [0, 0, 0, 0]; // 4 seasons
+    const newDayOfWeekTrends: number[] = [0, 0, 0, 0, 0, 0, 0]; // 7 days
+
+    csvData.forEach((row, index) => {
+      const balls = row.slice(2, 17);
+      const date = new Date(row[1]);
+      const seasonIndex = Math.floor(((date.getMonth() + 1) % 12) / 3);
+      const dayOfWeek = date.getDay();
+
+      newSeasonalTrends[seasonIndex]++;
+      newDayOfWeekTrends[dayOfWeek]++;
+
+      ranges.forEach((range, rangeIndex) => {
+        if (index < range) {
+          balls.forEach(ball => {
+            newFrequencyAnalysis[rangeIndex].frequencies[ball] = (newFrequencyAnalysis[rangeIndex].frequencies[ball] || 0) + 1;
+          });
+        }
+      });
+    });
+
+    setFrequencyAnalysis(newFrequencyAnalysis);
+    setSeasonalTrends(newSeasonalTrends);
+    setDayOfWeekTrends(newDayOfWeekTrends);
+  }, [csvData]);
+
+  useEffect(() => {
+    analyzeData();
+  }, [analyzeData]);
+
   const evolveGeneration = useCallback(() => {
     setGeneration(prev => prev + 1);
-    // Implement evolution logic here if needed
     addLog(`Geração ${generation} concluída. Iniciando geração ${generation + 1}.`);
   }, [generation, addLog]);
 
@@ -188,6 +233,9 @@ export const useGameLogic = (csvData: number[][], trainedModel: tf.LayersModel |
     logs,
     addLog,
     toggleInfiniteMode,
-    maxConcurso
+    maxConcurso,
+    frequencyAnalysis,
+    seasonalTrends,
+    dayOfWeekTrends,
   };
 };
