@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import * as tf from '@tensorflow/tfjs';
-import { updateModel } from '../utils/aiModel';
+import { updateModel, normalizeData } from '../utils/aiModel';
 
 interface Player {
   id: number;
@@ -42,7 +42,7 @@ export const useGameLogic = (csvData: number[][], trainedModel: tf.LayersModel |
       id: i + 1,
       score: 0,
       predictions: [],
-      weights: Array.from({ length: 17 }, () => Math.floor(Math.random() * 1001))
+      weights: Array.from({ length: 21 }, () => Math.floor(Math.random() * 1001))
     }));
     setPlayers(newPlayers);
   }, []);
@@ -54,12 +54,9 @@ export const useGameLogic = (csvData: number[][], trainedModel: tf.LayersModel |
   const makePrediction = (inputData: number[], playerWeights: number[]): number[] => {
     if (!trainedModel) return [];
     
-    const normalizedConcursoNumber = concursoNumber / 3184;
-    const normalizedDataSorteio = Date.now() / (1000 * 60 * 60 * 24 * 365);
-    const input = [...inputData, normalizedConcursoNumber, normalizedDataSorteio];
-    
-    const weightedInput = input.map((value, index) => value * (playerWeights[index] / 1000));
-    const inputTensor = tf.tensor2d([weightedInput], [1, 17]);
+    const normalizedData = normalizeData([inputData])[0];
+    const weightedInput = normalizedData.map((value, index) => value * (playerWeights[index] / 1000));
+    const inputTensor = tf.tensor2d([weightedInput], [1, 21]);
     
     const predictions = trainedModel.predict(inputTensor) as tf.Tensor;
     const result = Array.from(predictions.dataSync());
