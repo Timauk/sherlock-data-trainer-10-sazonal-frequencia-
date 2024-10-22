@@ -9,12 +9,26 @@ export interface TrainingConfig {
 
 export function createModel(): tf.LayersModel {
   const model = tf.sequential();
-  model.add(tf.layers.lstm({ units: 64, inputShape: [null, 17], returnSequences: true }));
-  model.add(tf.layers.lstm({ units: 32 }));
+  
+  // Input layer
+  model.add(tf.layers.dense({ units: 64, activation: 'relu', inputShape: [17] }));
+  
+  // LSTM layer for capturing temporal patterns
+  model.add(tf.layers.lstm({ units: 32, returnSequences: false }));
+  
+  // Dense layers
   model.add(tf.layers.dense({ units: 64, activation: 'relu' }));
-  model.add(tf.layers.dropout({ rate: 0.2 }));
+  model.add(tf.layers.dense({ units: 32, activation: 'relu' }));
+  
+  // Output layer
   model.add(tf.layers.dense({ units: 15, activation: 'sigmoid' }));
-  model.compile({ optimizer: 'adam', loss: 'binaryCrossentropy' });
+  
+  model.compile({ 
+    optimizer: tf.train.adam(0.001),
+    loss: 'binaryCrossentropy',
+    metrics: ['accuracy']
+  });
+  
   return model;
 }
 
@@ -23,14 +37,21 @@ export async function trainModel(
   data: number[][],
   config: TrainingConfig
 ): Promise<tf.History> {
-  const xs = tf.tensor3d(data.map(row => [row.slice(0, 17)]));
-  const ys = tf.tensor2d(data.map(row => row.slice(17)));
+  const xs = tf.tensor2d(data.map(row => [
+    ...row.slice(0, 15), // 15 bolas
+    normalizeDate(new Date(row[15])), // Data normalizada
+    row[16] / 10000 // Número do concurso normalizado
+  ]));
+  const ys = tf.tensor2d(data.map(row => row.slice(0, 15)));
 
   const history = await model.fit(xs, ys, {
     epochs: config.epochs,
     batchSize: config.batchSize,
     validationSplit: config.validationSplit,
-    callbacks: tf.callbacks.earlyStopping({ monitor: 'val_loss', patience: config.earlyStoppingPatience })
+    callbacks: [
+      tf.callbacks.earlyStopping({ monitor: 'val_loss', patience: config.earlyStoppingPatience }),
+      tf.callbacks.tensorBoard('logs')
+    ]
   });
 
   xs.dispose();
@@ -39,14 +60,26 @@ export async function trainModel(
   return history;
 }
 
+function normalizeDate(date: Date): number {
+  const startDate = new Date('2003-09-29'); // Data do primeiro concurso
+  const timeDiff = date.getTime() - startDate.getTime();
+  return timeDiff / (1000 * 60 * 60 * 24 * 365); // Normaliza para anos
+}
+
 export function normalizeData(data: number[][]): number[][] {
-  const maxValue = 25;
-  return data.map(row => row.map(n => n / maxValue));
+  return data.map(row => [
+    ...row.slice(0, 15).map(n => n / 25), // Normaliza as bolas
+    normalizeDate(new Date(row[15])), // Normaliza a data
+    row[16] / 10000 // Normaliza o número do concurso
+  ]);
 }
 
 export function denormalizeData(data: number[][]): number[][] {
-  const maxValue = 25;
-  return data.map(row => row.map(n => Math.round(n * maxValue)));
+  return data.map(row => [
+    ...row.slice(0, 15).map(n => Math.round(n * 25)),
+    row[15], // Mantém a data normalizada
+    Math.round(row[16] * 10000) // Desnormaliza o número do concurso
+  ]);
 }
 
 export function addDerivedFeatures(data: number[][]): number[][] {
