@@ -32,6 +32,7 @@ export const useGameLogic = (csvData: number[][], trainedModel: tf.LayersModel |
 
   const [trainingData, setTrainingData] = useState<number[][]>([]);
   const [updateInterval, setUpdateInterval] = useState(10);
+  const [maxConcurso, setMaxConcurso] = useState(0);
 
   const addLog = useCallback((message: string, matches?: number) => {
     setLogs(prevLogs => [...prevLogs, { message, matches }]);
@@ -42,21 +43,24 @@ export const useGameLogic = (csvData: number[][], trainedModel: tf.LayersModel |
       id: i + 1,
       score: 0,
       predictions: [],
-      weights: Array.from({ length: 21 }, () => Math.floor(Math.random() * 1001))
+      weights: Array.from({ length: 22 }, () => Math.floor(Math.random() * 1001))
     }));
     setPlayers(newPlayers);
   }, []);
 
   useEffect(() => {
     initializePlayers();
-  }, [initializePlayers]);
+    if (csvData.length > 0) {
+      setMaxConcurso(Math.max(...csvData.map(row => row[0])));
+    }
+  }, [initializePlayers, csvData]);
 
   const makePrediction = (inputData: number[], playerWeights: number[]): number[] => {
     if (!trainedModel) return [];
     
     const normalizedData = normalizeData([inputData])[0];
     const weightedInput = normalizedData.map((value, index) => value * (playerWeights[index] / 1000));
-    const inputTensor = tf.tensor2d([weightedInput], [1, 21]);
+    const inputTensor = tf.tensor2d([weightedInput], [1, 22]);
     
     const predictions = trainedModel.predict(inputTensor) as tf.Tensor;
     const result = Array.from(predictions.dataSync());
@@ -183,6 +187,7 @@ export const useGameLogic = (csvData: number[][], trainedModel: tf.LayersModel |
     modelMetrics,
     logs,
     addLog,
-    toggleInfiniteMode
+    toggleInfiniteMode,
+    maxConcurso
   };
 };

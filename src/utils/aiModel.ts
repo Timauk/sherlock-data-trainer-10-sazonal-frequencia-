@@ -10,7 +10,7 @@ export interface TrainingConfig {
 function createModel(): tf.LayersModel {
   const model = tf.sequential();
   
-  model.add(tf.layers.dense({ units: 64, activation: 'relu', inputShape: [21] })); // Aumentado para 21 inputs
+  model.add(tf.layers.dense({ units: 64, activation: 'relu', inputShape: [22] })); // Aumentado para 22 inputs
   model.add(tf.layers.lstm({ units: 32, returnSequences: false }));
   model.add(tf.layers.dense({ units: 64, activation: 'relu' }));
   model.add(tf.layers.dense({ units: 32, activation: 'relu' }));
@@ -40,7 +40,6 @@ async function trainModel(
     validationSplit: config.validationSplit,
     callbacks: [
       tf.callbacks.earlyStopping({ monitor: 'val_loss', patience: config.earlyStoppingPatience }),
-      // Removido o callback tensorBoard que causava o erro
     ]
   });
 
@@ -78,10 +77,12 @@ function processData(data: number[][]): number[][] {
     seasonalTrends.push(seasonIndex);
   }
 
+  const maxConcurso = Math.max(...data.map(row => row[0]));
+
   return data.map((row, index) => {
     const normalizedBalls = row.slice(2, 17).map(ball => ball / 25);
     const normalizedDate = normalizeDate(new Date(row[1]));
-    const normalizedConcurso = row[0] / 10000;
+    const normalizedConcurso = row[0] / maxConcurso; // Normalização ajustada
     const normalizedSum = sumIndices[index] / 375; // 375 é a soma máxima possível (15 * 25)
     const normalizedFrequencies = row.slice(2, 17).map(ball => (frequencyMap.get(ball) || 0) / data.length);
     
@@ -100,11 +101,11 @@ export function normalizeData(data: number[][]): number[][] {
   return processData(data);
 }
 
-export function denormalizeData(data: number[][]): number[][] {
+export function denormalizeData(data: number[][], maxConcurso: number): number[][] {
   return data.map(row => [
     ...row.slice(0, 15).map(n => Math.round(n * 25)),
     row[15], // Mantém a data normalizada
-    Math.round(row[16] * 10000), // Desnormaliza o número do concurso
+    Math.round(row[16] * maxConcurso), // Desnormaliza o número do concurso
     // Outros campos permanecem normalizados
   ]);
 }
